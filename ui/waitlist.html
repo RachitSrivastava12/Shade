@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Shade — the open dark pool on Solana</title>
+<meta name="description" content="The open dark pool for Solana. Orders stay hidden until they fill." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='12' fill='%23E9B872'/%3E%3Ccircle cx='24.4' cy='15.6' r='12' fill='%2308090C'/%3E%3C/svg%3E" />
+<style>
+:root{
+  --void:#08090c; --corona:#f0ead6; --muted:rgba(240,234,214,.5);
+  --faint:rgba(240,234,214,.3); --amber:#e9b872; --jade:#4ade9e; --coral:#f2616b;
+  --line:rgba(240,234,214,.09);
+  --display:"Schibsted Grotesk",system-ui,sans-serif; --mono:"JetBrains Mono",monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-font-smoothing:antialiased}
+body{
+  background:
+    radial-gradient(1000px 680px at 50% -12%, rgba(233,184,114,.11), transparent 62%),
+    radial-gradient(800px 560px at 50% 116%, rgba(74,222,158,.045), transparent 60%),
+    var(--void);
+  color:var(--corona); font-family:var(--display);
+  min-height:100vh; display:flex; flex-direction:column; overflow-x:hidden;
+}
+nav{display:flex;align-items:center;justify-content:space-between;padding:24px 28px;max-width:1100px;margin:0 auto;width:100%}
+.brand{display:flex;align-items:center;gap:11px}
+.brand .name{font-weight:700;font-size:17px;letter-spacing:.18em}
+nav a{color:var(--muted);text-decoration:none;font-family:var(--mono);font-size:12px;letter-spacing:.06em;transition:color .15s}
+nav a:hover{color:var(--corona)}
+main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 24px 64px}
+.eclipse{position:relative;width:200px;height:200px;margin-bottom:44px}
+.ring{position:absolute;inset:0;border-radius:50%;border:1px solid var(--line)}
+.ring.r2{inset:22px;border-color:rgba(240,234,214,.055)}
+.corona{position:absolute;inset:30px;border-radius:50%;
+  background:radial-gradient(circle at 38% 62%, #fbf4df 0%, #e9b872 44%, #9a7b3e 74%, transparent 100%);
+  animation:breathe 6s ease-in-out infinite}
+.shadow{position:absolute;width:152px;height:152px;border-radius:50%;background:var(--void);
+  top:16px;right:12px;box-shadow:inset 0 0 50px rgba(0,0,0,.55)}
+.orbit{position:absolute;inset:0;animation:spin 24s linear infinite}
+.orbit .dot{position:absolute;top:2px;left:50%;width:5px;height:5px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px var(--amber)}
+@keyframes breathe{0%,100%{opacity:.92;transform:scale(1)}50%{opacity:1;transform:scale(1.02)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+h1{font-size:clamp(44px,7vw,82px);font-weight:700;letter-spacing:-.03em;line-height:.98;margin-bottom:20px}
+h1 .glow{color:var(--amber)}
+.sub{font-size:clamp(15px,2vw,18px);color:var(--muted);max-width:430px;line-height:1.55;margin-bottom:30px}
+.sub b{color:var(--corona);font-weight:600}
+.chips{display:flex;align-items:center;gap:14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--faint);margin-bottom:40px;flex-wrap:wrap;justify-content:center}
+.chips i{font-style:normal;color:var(--muted)}
+.chips .sep{width:3px;height:3px;border-radius:50%;background:var(--faint)}
+.pill{display:inline-flex;align-items:center;gap:9px;padding:11px 18px;border:1px solid var(--line);
+  border-radius:999px;font-family:var(--mono);font-size:12.5px;letter-spacing:.05em;color:var(--corona);
+  background:linear-gradient(180deg,rgba(240,234,214,.03),transparent)}
+.pill .d{width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber);animation:p 1.8s ease-in-out infinite}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.4}}
+footer{display:flex;justify-content:space-between;padding:20px 28px;max-width:1100px;margin:0 auto;width:100%;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;color:var(--faint);flex-wrap:wrap;gap:8px}
+@media(max-width:560px){nav a{font-size:11px} .eclipse{width:170px;height:170px} .shadow{width:130px;height:130px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<nav>
+  <div class="brand">
+    <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
+      <circle cx="20" cy="20" r="13.5" fill="none" stroke="#e9b872" stroke-width="0.6" opacity="0.55"/>
+      <circle cx="20" cy="20" r="12" fill="#e9b872"/>
+      <circle cx="24.4" cy="15.6" r="12" fill="#08090c"/>
+    </svg>
+    <span class="name">SHADE</span>
+  </div>
+  <a href="https://x.com" target="_blank" rel="noopener">X &#8599;</a>
+</nav>
+<main>
+  <div class="eclipse">
+    <div class="ring"></div><div class="ring r2"></div>
+    <div class="corona"></div>
+    <div class="shadow"></div>
+    <div class="orbit"><span class="dot"></span></div>
+  </div>
+  <h1>Trade in the<br><span class="glow">shade.</span></h1>
+  <p class="sub">The open dark pool for Solana. Your orders stay <b>hidden until they fill.</b></p>
+  <div class="chips">
+    <i>Hidden orders</i><span class="sep"></span>
+    <i>Real-time matching</i><span class="sep"></span>
+    <i>Settled on Solana</i>
+  </div>
+  <div class="pill"><span class="d"></span> Waitlist opening soon</div>
+</main>
+<footer>
+  <span>SHADE &middot; open dark pool</span>
+  <span>matched on MagicBlock &middot; settled on Solana</span>
+</footer>
+</body>
+</html>
