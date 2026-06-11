@@ -1,0 +1,24 @@
+{
+  "name": "shade",
+  "version": "0.1.0",
+  "license": "MIT",
+  "scripts": {
+    "demo": "ts-node scripts/demo.ts",
+    "test": "ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "0.32.1",
+    "@magicblock-labs/ephemeral-rollups-sdk": "0.14.3",
+    "@solana/web3.js": "^1.95.0"
+  },
+  "devDependencies": {
+    "@types/chai": "^5.2.2",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.0.0",
+    "chai": "^5.2.0",
+    "mocha": "^11.2.2",
+    "ts-mocha": "^11.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
