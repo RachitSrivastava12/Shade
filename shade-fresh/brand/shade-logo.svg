@@ -1,0 +1,13 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="shadeCorona" cx="42%" cy="60%" r="62%">
+      <stop offset="0%" stop-color="#fff7e4"/>
+      <stop offset="52%" stop-color="#f3cd8e"/>
+      <stop offset="100%" stop-color="#cf9c54"/>
+    </radialGradient>
+  </defs>
+  <circle cx="50" cy="50" r="49" fill="none" stroke="#e9b872" stroke-width="0.5" opacity="0.20"/>
+  <circle cx="50" cy="50" r="39" fill="none" stroke="#f0ead6" stroke-width="0.4" opacity="0.07"/>
+  <circle cx="51.3" cy="53.5" r="33.9" fill="url(#shadeCorona)"/>
+  <circle cx="64.2" cy="43.2" r="33.9" fill="#08090c"/>
+</svg>

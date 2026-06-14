@@ -1,0 +1,1481 @@
+{
+  "address": "EhAEENuUTGpx6a35Xaex6Y6KPnpbxoa7zZsE21wspzxc",
+  "metadata": {
+    "name": "shade",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Shade — dark pool orderbook on Solana, matched on MagicBlock Ephemeral Rollups"
+  },
+  "instructions": [
+    {
+      "name": "cancel_order",
+      "discriminator": [
+        95,
+        129,
+        237,
+        240,
+        8,
+        49,
+        223,
+        132
+      ],
+      "accounts": [
+        {
+          "name": "book",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  118,
+                  53
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "trader",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "commit_book",
+      "discriminator": [
+        97,
+        13,
+        159,
+        245,
+        44,
+        27,
+        66,
+        174
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "book",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  118,
+                  53
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "delegate",
+      "discriminator": [
+        90,
+        147,
+        75,
+        178,
+        85,
+        88,
+        4,
+        137
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "signer": true
+        },
+        {
+          "name": "buffer_pda",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pda"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                203,
+                113,
+                152,
+                191,
+                61,
+                53,
+                252,
+                240,
+                254,
+                193,
+                172,
+                29,
+                221,
+                195,
+                173,
+                250,
+                202,
+                16,
+                45,
+                47,
+                35,
+                132,
+                183,
+                80,
+                128,
+                52,
+                74,
+                43,
+                205,
+                46,
+                23,
+                85
+              ]
+            }
+          }
+        },
+        {
+          "name": "delegation_record_pda",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pda"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "delegation_metadata_pda",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pda"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "pda",
+          "writable": true
+        },
+        {
+          "name": "owner_program",
+          "address": "EhAEENuUTGpx6a35Xaex6Y6KPnpbxoa7zZsE21wspzxc"
+        },
+        {
+          "name": "delegation_program",
+          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "deposit_base",
+      "docs": [
+        "Deposit base tokens (wSOL) into the vault and credit the ledger."
+      ],
+      "discriminator": [
+        213,
+        125,
+        25,
+        122,
+        8,
+        72,
+        100,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "book",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  118,
+                  53
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_base",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  98,
+                  97,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_token",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "deposit_quote",
+      "docs": [
+        "Deposit quote tokens (USDC) into the vault and credit the ledger."
+      ],
+      "discriminator": [
+        117,
+        189,
+        114,
+        160,
+        243,
+        50,
+        163,
+        104
+      ],
+      "accounts": [
+        {
+          "name": "book",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  118,
+                  53
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_quote",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  113,
+                  117,
+                  111,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_token",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "init_user",
+      "docs": [
+        "Create the signer's per-user balance ledger."
+      ],
+      "discriminator": [
+        14,
+        51,
+        68,
+        159,
+        237,
+        78,
+        158,
+        102
+      ],
+      "accounts": [
+        {
+          "name": "book",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  118,
+                  53
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "init_vaults",
+      "docs": [
+        "Create the two program-owned vault token accounts (base + quote), held by a PDA authority."
+      ],
+      "discriminator": [
+        250,
+        62,
+        242,
+        50,
+        163,
+        133,
+        108,
+        93
+      ],
+      "accounts": [
+        {
+          "name": "book",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  118,
+                  53
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "base_mint"
+        },
+        {
+          "name": "quote_mint"
+        },
+        {
+          "name": "vault_auth",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_base",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  98,
+                  97,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_quote",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  113,
+                  117,
+                  111,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_book",
+      "docs": [
+        "Create the order book on the base layer + record the market's two mints."
+      ],
+      "discriminator": [
+        229,
+        238,
+        30,
+        198,
+        244,
+        0,
+        186,
+        239
+      ],
+      "accounts": [
+        {
+          "name": "book",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  118,
+                  53
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "base_mint"
+        },
+        {
+          "name": "quote_mint"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "tick",
+          "type": "u64"
+        },
+        {
+          "name": "lot",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "match_book",
+      "discriminator": [
+        182,
+        235,
+        162,
+        83,
+        162,
+        32,
+        182,
+        244
+      ],
+      "accounts": [
+        {
+          "name": "book",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  118,
+                  53
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "trader",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "place_order",
+      "discriminator": [
+        51,
+        194,
+        155,
+        175,
+        109,
+        130,
+        96,
+        106
+      ],
+      "accounts": [
+        {
+          "name": "book",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  118,
+                  53
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "trader",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "side",
+          "type": "u8"
+        },
+        {
+          "name": "price",
+          "type": "u64"
+        },
+        {
+          "name": "size",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "process_undelegation",
+      "discriminator": [
+        196,
+        28,
+        41,
+        206,
+        48,
+        37,
+        51,
+        167
+      ],
+      "accounts": [
+        {
+          "name": "base_account",
+          "writable": true
+        },
+        {
+          "name": "buffer"
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "account_seeds",
+          "type": {
+            "vec": "bytes"
+          }
+        }
+      ]
+    },
+    {
+      "name": "settle_and_undelegate",
+      "discriminator": [
+        169,
+        143,
+        70,
+        235,
+        249,
+        1,
+        119,
+        52
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "book",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  118,
+                  53
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "settle_fill",
+      "docs": [
+        "Settle the next unsettled fill: move credited balances buyer<->seller.",
+        "Call repeatedly until book.settled_seq == latest fill id (frontend loops).",
+        "Must run on the BASE layer after `settle_and_undelegate` brings the book home."
+      ],
+      "discriminator": [
+        197,
+        81,
+        135,
+        50,
+        191,
+        3,
+        171,
+        75
+      ],
+      "accounts": [
+        {
+          "name": "book",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  118,
+                  53
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "buyer_balance",
+          "writable": true
+        },
+        {
+          "name": "seller_balance",
+          "writable": true
+        },
+        {
+          "name": "cranker",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "withdraw_base",
+      "docs": [
+        "Withdraw base tokens (wSOL) from the vault back to the user."
+      ],
+      "discriminator": [
+        161,
+        122,
+        255,
+        170,
+        42,
+        39,
+        23,
+        120
+      ],
+      "accounts": [
+        {
+          "name": "book",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  118,
+                  53
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_auth",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_base",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  98,
+                  97,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_token",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_quote",
+      "docs": [
+        "Withdraw quote tokens (USDC) from the vault back to the user."
+      ],
+      "discriminator": [
+        209,
+        209,
+        177,
+        248,
+        7,
+        105,
+        157,
+        66
+      ],
+      "accounts": [
+        {
+          "name": "book",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  111,
+                  107,
+                  95,
+                  118,
+                  53
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_balance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_auth",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_quote",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  113,
+                  117,
+                  111,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "book"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_token",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "OrderBook",
+      "discriminator": [
+        55,
+        230,
+        125,
+        218,
+        149,
+        39,
+        65,
+        248
+      ]
+    },
+    {
+      "name": "UserBalance",
+      "discriminator": [
+        187,
+        237,
+        208,
+        146,
+        86,
+        132,
+        29,
+        191
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "BadSide",
+      "msg": "side must be 0 (bid) or 1 (ask)"
+    },
+    {
+      "code": 6001,
+      "name": "BadParams",
+      "msg": "price and size must be > 0"
+    },
+    {
+      "code": 6002,
+      "name": "BookFull",
+      "msg": "order book side is full"
+    },
+    {
+      "code": 6003,
+      "name": "OrderNotFound",
+      "msg": "order not found or not owned by signer"
+    },
+    {
+      "code": 6004,
+      "name": "SequenceOverflow",
+      "msg": "order book sequence overflow"
+    },
+    {
+      "code": 6005,
+      "name": "MathOverflow",
+      "msg": "math overflow"
+    },
+    {
+      "code": 6006,
+      "name": "InsufficientFunds",
+      "msg": "insufficient credited balance"
+    },
+    {
+      "code": 6007,
+      "name": "NothingToSettle",
+      "msg": "no unsettled fills remain"
+    },
+    {
+      "code": 6008,
+      "name": "WrongSettleAccounts",
+      "msg": "buyer/seller balance accounts do not match the next fill"
+    }
+  ],
+  "types": [
+    {
+      "name": "Fill",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "seller",
+            "type": "pubkey"
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          },
+          {
+            "name": "size",
+            "type": "u64"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Order",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          },
+          {
+            "name": "size",
+            "type": "u64"
+          },
+          {
+            "name": "side",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OrderBook",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "base_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "quote_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "seq",
+            "type": "u64"
+          },
+          {
+            "name": "settled_seq",
+            "type": "u64"
+          },
+          {
+            "name": "last_price",
+            "type": "u64"
+          },
+          {
+            "name": "tick",
+            "type": "u64"
+          },
+          {
+            "name": "lot",
+            "type": "u64"
+          },
+          {
+            "name": "bids",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "Order"
+                }
+              }
+            }
+          },
+          {
+            "name": "asks",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "Order"
+                }
+              }
+            }
+          },
+          {
+            "name": "fills",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "Fill"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserBalance",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "base_free",
+            "type": "u64"
+          },
+          {
+            "name": "quote_free",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
