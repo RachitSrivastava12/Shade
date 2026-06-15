@@ -1,195 +1,164 @@
-# Shade — the open dark order book for Solana
+# 🌒 Shade
 
-Resting orders are matched **privately inside a MagicBlock Ephemeral Rollup**, then
-settled trustlessly on Solana as real SPL transfers (wSOL ↔ USDC). Your orders stay
-hidden until they fill.
+**The open dark order book for Solana.**
 
-- Program (devnet): `EN1GWHvfvuW2fbxKop3xzUrZm2RoDobVpYwrtk2mRDk1`
-- Base mint: wSOL `So11111111111111111111111111111111111111112`
-- Quote mint: your mock USDC (6 decimals) — set via `USDC_MINT`
+Your orders stay hidden until they fill — matched privately on a [MagicBlock](https://magicblock.gg) Ephemeral Rollup, settled trustlessly on Solana.
 
-This build uses a **fresh book (`book_v4`)** so there is zero leftover rollup/delegation
-state from earlier testing. The engine runs as **one standalone process** (`npm run crank`),
-not in the browser, so multiple wallets/tabs never fight over delegating the same book.
+> Built for the MagicBlock **Solana Blitz v5** hackathon · live on devnet
+> App: [tradeshade.online](https://tradeshade.online) · X: [@tradedotshade](https://x.com/tradedotshade)
 
 ---
 
-## 0. Prerequisites
+## Why
 
-- Rust + Solana CLI + Anchor (same toolchain you already deployed with: anchor-lang 1.0.2)
-- Node 18+ and `ts-node`
-- A devnet wallet at `~/.config/solana/id.json` funded with **~6–10 SOL**
-- Your mock USDC mint (you already have one): `DANN41Tukr829a3zzXy81QpzfqNyYendveiuvwDnho4R`
+On a public on-chain order book, every resting order is visible — so anyone trading size gets front-run, picked off, and sandwiched. Dark pools fix this, but the ones on Solana today (prop AMMs like HumidiFi) are **closed and operator-trusted**, and the open ones (Renegade, Penumbra) use heavy ZK/MPC and **don't live on Solana**.
 
-Set these in **every terminal** you use:
+Shade is the missing piece: an **open, permissionless dark order book, native to Solana**, fast enough to actually trade on.
 
-```bash
-export ANCHOR_WALLET=~/.config/solana/id.json
-export PROVIDER_ENDPOINT=https://divine-fittest-season.solana-devnet.quiknode.pro/17750ffdb134b9cfe0539702c9f709ff4a855f60/
-export USDC_MINT=DANN41Tukr829a3zzXy81QpzfqNyYendveiuvwDnho4R
+The full thesis: [`THESIS.md`](./THESIS.md) · the settlement design: [`SETTLEMENT.md`](./SETTLEMENT.md)
+
+---
+
+## How it works
+
+Shade keeps custody and settlement on Solana, and moves only the *matching* off the public surface.
+
+1. **Deposit (Solana).** Real SOL is wrapped to wSOL and held in program vaults; your balance is credited on-chain.
+2. **Match in the dark (Ephemeral Rollup).** The order book is *delegated* to a MagicBlock Ephemeral Rollup, where orders cross gaslessly and sub-millisecond — never broadcast to Solana's public mempool. While an order rests, the book is locked on Solana, owned by the delegation program.
+3. **Settle (Solana).** On a match, the book commits and undelegates back to Solana, where settlement is real and atomic — actual wSOL ↔ USDC moves between the counterparties' on-chain balances. Withdraw anytime.
+
+> **Privacy model — stated honestly:** this is *execution privacy*, not ZK-grade secrecy. Orders are invisible to Solana's public mempool/lit book (which is what kills front-running and sandwiching), but the rollup sequencer can see them. The trade-off buys speed, near-zero cost, a normal wallet, real on-chain settlement, and composability — today.
+
+---
+
+## MagicBlock Ephemeral Rollup integration
+
+The ER integration lives in **`programs/shade/src/lib.rs`** (delegate / commit / undelegate) and **`app/src/lib/shade.ts`** + **`scripts/crank.ts`** (client + settlement engine). Key pieces:
+
+- **Delegation** — `delegate_book` hands the order-book account to MagicBlock's delegation program so matching can run on the rollup.
+- **Magic Router** — ER transactions are sent to the **Magic Router** (`https://devnet-router.magicblock.app`), which inspects writable accounts and routes the write to the node holding the delegated copy.
+- **`getBlockhashForAccounts`** — the router's custom blockhash RPC is used for ER transactions (standard `getLatestBlockhash` won't work), keyed on the transaction's writable accounts.
+- **Commit + undelegate** — `settle_and_undelegate` commits the rollup state back to Solana and returns the book to the base layer, where `settle_fill` moves real SPL balances between buyer and seller.
+
+---
+
+## Tech stack
+
+| Layer | Stack |
+|---|---|
+| Program | Rust · Anchor 0.32 · MagicBlock Ephemeral Rollups SDK |
+| Client / app | TypeScript · React 18 · Vite · `@solana/web3.js` · wallet-adapter · SPL Token |
+| Settlement engine | TypeScript crank (state-driven; delegate ⇄ settle ⇄ undelegate) |
+
+---
+
+## Project structure ( in the shade-fresh folder)
+
+```
+shade/
+├── programs/shade/src/lib.rs   # Anchor program (book, vaults, deposit/withdraw, match, delegate, settle)
+├── app/                        # Vite + React dApp (the trading UI)
+│   ├── src/App.tsx
+│   └── src/lib/shade.ts        # ShadeClient — base + ER providers, Magic Router, routerBlockhash
+├── scripts/
+│   ├── crank.ts                # the settlement engine (run this alongside the app)
+│   ├── bootstrap.ts            # one-time: create the book + vaults
+│   └── cli_buyer.ts            # CLI counterparty for testing/demo
+├── THESIS.md  ·  SETTLEMENT.md
+└── Anchor.toml  ·  Cargo.toml
 ```
 
 ---
 
-## 1. Install
+## Quickstart (devnet)
 
+### Prerequisites
+- Rust + Solana CLI + [Anchor](https://www.anchor-lang.com/) 0.32
+- Node 18+
+- A devnet RPC endpoint (public devnet is rate-limited for deploys — a [QuickNode](https://quicknode.com) devnet URL is recommended)
+- A devnet wallet with ~5 SOL
+
+### 1 · Install
 ```bash
+git clone https://github.com/RachitSrivastava12/shade
+cd shade
 npm install
 cd app && npm install && cd ..
 ```
 
----
-
-## 2. Build + deploy the program (fresh book)
-
-Only a constant changed (`book_v3` → `book_v4`) plus TypeScript, so the Rust compiles as before.
-Because the book seed changed, you must rebuild and redeploy.
-
-### Keep your existing program ID (recommended — deck/submission stay valid)
-
-Copy your **existing** program keypair into this project so the ID stays `EN1GW…`,
-then build + upgrade-deploy:
-
+### 2 · Environment
+Every terminal that runs scripts/deploys needs:
 ```bash
-mkdir -p target/deploy
-cp "/path/to/your/old/project/target/deploy/shade-keypair.json" target/deploy/shade-keypair.json
+export ANCHOR_WALLET=~/.config/solana/id.json
+export PROVIDER_ENDPOINT=https://YOUR-QUICKNODE-DEVNET-URL/
+export USDC_MINT=<your-mock-usdc-mint>     # create one with `spl-token create-token --decimals 6`
+```
 
+### 3 · Build & deploy the program
+```bash
 anchor build
-
-# deploy via QuickNode devnet (public devnet RPC times out on deploys):
+anchor keys sync
 solana program deploy target/deploy/shade.so \
   --program-id target/deploy/shade-keypair.json \
   --url $PROVIDER_ENDPOINT --use-rpc \
   --with-compute-unit-price 50000 --max-sign-attempts 1000
+cp target/idl/shade.json app/public/shade.json
 ```
 
-> If a deploy fails midway and locks SOL in a buffer, recover it:
-> `solana program close --buffers --url $PROVIDER_ENDPOINT`
-
-### OR: brand-new program ID
-
+### 4 · Bootstrap the book
 ```bash
-solana-keygen new -o target/deploy/shade-keypair.json   # new id
-anchor keys sync                                         # updates declare_id! + Anchor.toml
-anchor build
-solana program deploy target/deploy/shade.so --program-id target/deploy/shade-keypair.json \
-  --url $PROVIDER_ENDPOINT --use-rpc --with-compute-unit-price 50000 --max-sign-attempts 1000
+npm run bootstrap        # creates the order book + vault PDAs (once)
 ```
-…then update the program address in your deck/submission.
 
-After deploy, confirm the IDL exists at `target/idl/shade.json` (Anchor writes it on build).
-
----
-
-## 3. Create the book + vaults (run once)
-
+### 5 · Configure & run the app
 ```bash
-npm run bootstrap
+cp app/.env.example app/.env
+# set VITE_PROVIDER_ENDPOINT and VITE_USDC_MINT in app/.env
+cd app && npm run dev
 ```
 
-Expected:
-
-```
-initialize_book OK ...
-init_vaults     OK ...
-book ready — asks:0 bids:0 fills:0 seq:1
-```
-
----
-
-## 4. Start the engine (Terminal 1 — leave running)
-
+### 6 · Run the settlement engine
+In a separate terminal (with the env exports above):
 ```bash
-npm run crank
+npm run crank            # delegates the book, watches for fills, settles + re-delegates
 ```
 
-It delegates the book to the rollup and prints the book every ~6s:
-
-```
-book on rollup — asks:0 bids:0 fills:0 settled:0
-```
-
-When a trade fills, it logs `N fill(s) to settle -> settled fill #N -> re-delegated`.
-
----
-
-## 5. Start the app (Terminal 2)
-
+Now connect a wallet in the UI, deposit, and place an order. To match it from a second wallet for testing:
 ```bash
-cd app
-npm run dev
-```
-
-Open the printed URL. The app reads these from `app/.env` (copy from `app/.env.example`):
-
-```
-VITE_USDC_MINT=DANN41Tukr829a3zzXy81QpzfqNyYendveiuvwDnho4R
-VITE_PROVIDER_ENDPOINT=https://divine-fittest-season.solana-devnet.quiknode.pro/17750ffdb134b9cfe0539702c9f709ff4a855f60/
+PRICE=187 npm run cli:buyer
 ```
 
 ---
 
-## 6. The two-wallet demo (the money shot)
+## Deploying the app
 
-Use two wallets (e.g. Phantom = buyer, Backpack = seller). Each needs a little devnet SOL
-for fees; the quote side needs mock USDC.
-
-1. **Seller (Backpack):** funds panel -> **deposit SOL** `0.05` -> place **Sell** `10 @ 18700`.
-   Watch Terminal 1: the book should show `asks:1`.
-2. **Buyer (Phantom):** **deposit USDC** (e.g. `100`) -> place **Buy** `10 @ 18700`.
-   Terminal 1 should show `fills:1 -> settled fill #... -> re-delegated`.
-3. Within ~15s the funds panels move:
-   - **Seller:** USDC `100 -> 101.87`, wSOL `0.05 -> 0.04`
-   - **Buyer:** wSOL `0.05 -> 0.06`, USDC `100 -> 98.13`
-
-Orders now surface **real errors** instead of a false success — if a placement fails, the
-app throws the actual rollup error (and program logs), so you see exactly what happened.
+The app is a static Vite build (`app/` → `dist/`). Deploy to any static host (e.g. Vercel: root directory `app`, framework **Vite**, build `npm run build`, output `dist`), and set the `VITE_*` env vars in the host. Point your domain at it.
 
 ---
 
-## 7. Rock-solid proof (no UI needed)
+## Key addresses (devnet)
 
-The self-contained, two-wallet settlement proof — real wSOL <-> USDC on devnet:
-
-```bash
-npm run demo:settle
-```
-
-Prints before/after balances for two fresh wallets. Undeniable evidence (also verifiable
-on Solscan via the program address).
-
----
-
-## Scripts
-
-| command | what it does |
+| | |
 |---|---|
-| `npm run bootstrap`   | create the book + vaults (run once after deploy) |
-| `npm run crank`       | the engine: delegate + auto-settle fills (leave running) |
-| `npm run demo:settle` | self-contained two-wallet real-token settlement proof |
-| `npm run place:test`  | place one order with preflight ON to surface real errors |
-| `npm run reset`       | undelegate + reset book state |
+| Program | `EhAEENuUTGpx6a35Xaex6Y6KPnpbxoa7zZsE21wspzxc` |
+| Order book (PDA) | `CTLjfMewydqaF1zLoBoeKNW8HdCzHG5BdcFpAr8Xu7QB` |
+| Base mint (wSOL) | `So11111111111111111111111111111111111111112` |
+| Quote mint (mock USDC) | `DANN41Tukr829a3zzXy81QpzfqNyYendveiuvwDnho4R` |
+| MagicBlock delegation program | `DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh` |
+| Magic Router | `https://devnet-router.magicblock.app` |
+
+To verify the book is delegated (hidden) while an order rests:
+```bash
+solana account CTLjfMewydqaF1zLoBoeKNW8HdCzHG5BdcFpAr8Xu7QB --url $PROVIDER_ENDPOINT | grep -i owner
+# → owner is the MagicBlock delegation program, not the Shade program
+```
 
 ---
 
-## Troubleshooting
+## License
 
-- **`asks:0` after placing an order** -> the place tx is failing. Run `npm run place:test`
-  to see the real program error. On a fresh `book_v4` this should not happen.
-- **Order placement is slow / retries** -> the book wasn't delegated yet. Make sure
-  `npm run crank` is running (it delegates on start).
-- **Deploy times out** -> use the QuickNode `--url $PROVIDER_ENDPOINT --use-rpc` form above.
-- **`init_vaults` says already exists** -> fine, vaults already created; ignore.
+MIT
 
 ---
 
-## How the Ephemeral Rollup is used
-
-1. The order book PDA is **delegated** to a MagicBlock ER validator.
-2. Orders are placed **on the rollup** — gasless, sub-10ms, app-controlled sequencing,
-   invisible to the public mempool. Matching is inline in `place_order`.
-3. When fills exist, the book is **committed + undelegated** back to Solana
-   (`settle_and_undelegate`), and `settle_fill` moves real balances buyer <-> seller.
-4. Withdraw moves real SPL tokens out of the program vaults.
-
-Private before, verifiable after.
+*Shade — privacy as execution, not as cryptography. Built on [MagicBlock](https://magicblock.gg) Ephemeral Rollups.*
