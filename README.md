@@ -15,7 +15,7 @@ On a public on-chain order book, every resting order is visible — so anyone tr
 
 Shade is the missing piece: an **open, permissionless dark order book, native to Solana**, fast enough to actually trade on.
 
-The full thesis: [`THESIS.md`](./THESIS.md) · the settlement design: [`SETTLEMENT.md`](./SETTLEMENT.md)
+The full thesis: [`THESIS.md`](./shade-fresh/THESIS.md) · the settlement design: [`SETTLEMENT.md`](./shade-fresh/SETTLEMENT.md)
 
 ---
 
