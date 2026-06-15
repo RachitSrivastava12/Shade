@@ -1,0 +1,6 @@
+{
+  "framework": "vite",
+  "installCommand": "npm install --legacy-peer-deps && cd app && npm install --legacy-peer-deps",
+  "buildCommand": "cd app && npm run build",
+  "outputDirectory": "app/dist"
+}

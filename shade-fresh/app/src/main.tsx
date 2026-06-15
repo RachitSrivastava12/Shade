@@ -16,17 +16,20 @@ import "./styles.css";
 
 const BASE_RPC =
   (import.meta as any).env?.VITE_BASE_RPC || "https://api.devnet.solana.com";
+const SolanaConnectionProvider = ConnectionProvider as any;
+const SolanaWalletProvider = WalletProvider as any;
+const SolanaWalletModalProvider = WalletModalProvider as any;
 
 function Root() {
   const wallets = useMemo(() => [new PhantomWalletAdapter()], []);
   return (
-    <ConnectionProvider endpoint={BASE_RPC}>
-      <WalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>
+    <SolanaConnectionProvider endpoint={BASE_RPC}>
+      <SolanaWalletProvider wallets={wallets} autoConnect>
+        <SolanaWalletModalProvider>
           <App />
-        </WalletModalProvider>
-      </WalletProvider>
-    </ConnectionProvider>
+        </SolanaWalletModalProvider>
+      </SolanaWalletProvider>
+    </SolanaConnectionProvider>
   );
 }
 

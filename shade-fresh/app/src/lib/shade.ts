@@ -245,8 +245,8 @@ export class ShadeClient {
   }
 
   // ---------- reads ----------
-  async fetchBookER(): Promise<BookJSON> { return normalizeBook(await this.erProgram.account.orderBook.fetch(this.book)); }
-  async fetchBookBase(): Promise<BookJSON> { return normalizeBook(await this.program.account.orderBook.fetch(this.book)); }
+  async fetchBookER(): Promise<BookJSON> { return normalizeBook(await (this.erProgram.account as any).orderBook.fetch(this.book)); }
+  async fetchBookBase(): Promise<BookJSON> { return normalizeBook(await (this.program.account as any).orderBook.fetch(this.book)); }
   /** Polls until the book account is owned by our program again (i.e. undelegated from the rollup). */
   async waitUndelegated(maxMs = 45000): Promise<boolean> {
     const conn = this.baseProvider.connection;
@@ -259,7 +259,7 @@ export class ShadeClient {
     return false;
   }
   async fetchMyBalance(): Promise<UserBalanceJSON | null> {
-    try { const b: any = await this.program.account.userBalance.fetch(this.myBal()); return { owner: b.owner.toBase58(), baseFree: Number(b.baseFree), quoteFree: Number(b.quoteFree) }; }
+    try { const b: any = await (this.program.account as any).userBalance.fetch(this.myBal()); return { owner: b.owner.toBase58(), baseFree: Number(b.baseFree), quoteFree: Number(b.quoteFree) }; }
     catch { return null; }
   }
 }

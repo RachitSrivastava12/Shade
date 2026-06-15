@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "license": "MIT",
   "scripts": {
+    "build": "cd app && npm run build",
     "demo": "ts-node scripts/demo.ts",
     "test": "ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts",
     "demo:settle": "ts-node scripts/demo_settle.ts",
