@@ -46,9 +46,9 @@ export default function App() {
   const [centerTab, setCenterTab] = useState<"chart" | "depth">("chart");
   const [botTab, setBotTab] = useState<"orders" | "history">("orders");
   const [side, setSide] = useState(SIDE_BID);
+  const [orderType, setOrderType] = useState<"market" | "limit">("market");
   const [price, setPrice] = useState("");
   const [size, setSize] = useState("");
-  const [slip, setSlip] = useState(0.5);
   const [ops, setOps] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle", msg: "ready" });
   const [marketSel, setMarketSel] = useState(false);
@@ -160,7 +160,14 @@ export default function App() {
   const myOrders = [...bids.map((o) => ({ ...o, s: "bid" })), ...asks.map((o) => ({ ...o, s: "ask" }))].filter((o) => o.owner === me);
 
   const priceNum = parseFloat(price) || 0, sizeNum = parseFloat(size) || 0;  // sizeNum is in SOL
-  const orderValue = priceNum * sizeNum, fee = orderValue * TAKER_FEE;
+
+  // best price on the side we'd cross into, and how much SOL is resting there right now
+  const refPx = side === SIDE_BID ? (bestAsk ? px(bestAsk) : stats?.price || 0)
+                                  : (bestBid ? px(bestBid) : stats?.price || 0);
+  const availSol = (side === SIDE_BID ? asks : bids).reduce((s, o) => s + sz(o.size), 0);
+  // market order fills at the best resting price; limit order uses the price you type
+  const execPx = orderType === "market" ? refPx : priceNum;
+  const orderValue = execPx * sizeNum, fee = orderValue * TAKER_FEE;
 
   // credited balances (what settlement actually draws from), in human units
   const baseFreeSol = bal ? bal.baseFree / 1e9 : 0;
@@ -172,13 +179,17 @@ export default function App() {
   // a buy settles by paying USDC (price*size); a sell settles by delivering SOL (size)
   const needUsdc = side === SIDE_BID ? orderValue : 0;
   const needSol = side === SIDE_ASK ? sizeNum : 0;
-  const underfunded = !!client && market.live && sizeNum > 0 && priceNum > 0 &&
+  const priceReady = orderType === "market" ? refPx > 0 : priceNum > 0;
+  const underfunded = !!client && market.live && sizeNum > 0 && priceReady &&
     (needUsdc + myOpenBidUsdc > quoteFreeUsdc + 1e-9 || needSol + myOpenAskSol > baseFreeSol + 1e-9);
 
   const placeOrder = () => {
-    if (!client || !market.live) return;
+    if (!client || !market.live || !execPx) return;
     const units = Math.max(1, Math.round(sizeNum / SIZE_PER_UNIT));
-    run(`place ${side === SIDE_BID ? "buy" : "sell"} ${sizeNum} ${market.base}`, "er", () => client.placeOrder(side, Math.round(priceNum * 100), units));
+    // market = a marketable limit at the current best price: fills what's resting, anything
+    // beyond available depth simply rests at that price (no runaway, no surprise fills).
+    run(`${orderType} ${side === SIDE_BID ? "buy" : "sell"} ${sizeNum} ${market.base}`, "er",
+      () => client.placeOrder(side, Math.round(execPx * 100), units));
   };
 
   const claimFaucet = async () => {
@@ -331,18 +342,27 @@ export default function App() {
 
         {/* RIGHT */}
         <section className="panel trade-panel" style={{ width: rightW }}>
-          <div className="tp-head">Market</div>
+          <div className="tp-head">Trade <span className="tp-pair">{market.label}</span></div>
           <div className="seg2"><button className={side === SIDE_BID ? "on buy" : ""} onClick={() => setSide(SIDE_BID)}>Buy</button><button className={side === SIDE_ASK ? "on sell" : ""} onClick={() => setSide(SIDE_ASK)}>Sell</button></div>
-          <div className="tp-field"><div className="tp-flab"><span>Size</span><span className="avail">{market.base}</span></div><input value={size} onChange={(e) => setSize(e.target.value)} placeholder="0.00" inputMode="decimal" /></div>
-          <div className="tp-field"><div className="tp-flab"><span>Limit price</span><span className="avail">{stats ? `mkt ${fmt(stats.price, dec(stats.price))}` : ""}</span></div><input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" inputMode="decimal" /></div>
-          <button className={`tp-cta ${side === SIDE_BID ? "buy" : "sell"}`} disabled={!client || !market.live || !sizeNum || !priceNum || underfunded} onClick={placeOrder}>{!market.live ? "book launching soon" : !client ? "connect wallet" : underfunded ? `deposit ${side === SIDE_BID ? "USDC" : "SOL"} to ${side === SIDE_BID ? "buy" : "sell"}` : `${side === SIDE_BID ? "Buy" : "Sell"} ${market.base} in shade`}</button>
-          <div className="slip-row"><span>Slippage</span><div className="slip-opts">{[0.1, 0.5, 1].map((s) => (<button key={s} className={slip === s ? "on" : ""} onClick={() => setSlip(s)}>{s}%</button>))}</div></div>
+          <div className="seg2 otype"><button className={orderType === "market" ? "on" : ""} onClick={() => setOrderType("market")}>Market</button><button className={orderType === "limit" ? "on" : ""} onClick={() => setOrderType("limit")}>Limit</button></div>
+          <div className="tp-field">
+            <div className="tp-flab"><span>Amount</span>{availSol > 0 && <button className="mxbtn" onClick={() => setSize(String(+availSol.toFixed(4)))}>{fmt(availSol, 3)} {market.base} available</button>}</div>
+            <div className="tp-input"><input value={size} onChange={(e) => setSize(e.target.value)} placeholder="0.00" inputMode="decimal" /><span className="tp-unit">{market.base}</span></div>
+          </div>
+          {orderType === "limit" ? (
+            <div className="tp-field">
+              <div className="tp-flab"><span>Limit price</span>{stats && <button className="mxbtn" onClick={() => setPrice(stats.price.toFixed(dec(stats.price)))}>use market {fmt(stats.price, dec(stats.price))}</button>}</div>
+              <div className="tp-input"><input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" inputMode="decimal" /><span className="tp-unit">USDC</span></div>
+            </div>
+          ) : (
+            <div className="tp-mktpx"><span>Fills at market price</span><span className="m">{refPx ? `≈ ${fmt(refPx)} USDC` : "—"}</span></div>
+          )}
+          <button className={`tp-cta ${side === SIDE_BID ? "buy" : "sell"}`} disabled={!client || !market.live || !sizeNum || !priceReady || underfunded} onClick={placeOrder}>{!market.live ? "book launching soon" : !client ? "connect wallet" : !sizeNum ? "enter an amount" : underfunded ? `deposit ${side === SIDE_BID ? "USDC" : "SOL"} first` : `${side === SIDE_BID ? "Buy" : "Sell"} ${sizeNum} ${market.base}`}</button>
           <div className="summary">
-            <div className="sr"><span>Order Value</span><span>${fmt(orderValue)}</span></div>
-            <div className="sr"><span>Est. Fill Price</span><span>{priceNum ? fmt(priceNum) : "—"}</span></div>
-            <div className="sr"><span>Taker Fee (0.05%)</span><span>${fmt(fee)}</span></div>
-            <div className="sr"><span>Network Fee</span><span>~$0.01</span></div>
-            <div className="sr total"><span>Total</span><span>${fmt(orderValue + fee)}</span></div>
+            <div className="sr"><span>{side === SIDE_BID ? "You pay" : "You receive"}</span><span>≈ ${fmt(orderValue)}</span></div>
+            <div className="sr"><span>{orderType === "market" ? "Market price" : "Your price"}</span><span>{execPx ? `${fmt(execPx)} USDC` : "—"}</span></div>
+            <div className="sr"><span>Fee (0.05%)</span><span>${fmt(fee)}</span></div>
+            <div className="sr total"><span>{side === SIDE_BID ? "Total cost" : "You get"}</span><span>${fmt(side === SIDE_BID ? orderValue + fee : Math.max(0, orderValue - fee))}</span></div>
           </div>
           {engine && (
             <div className={`engine ${engine.funded ? "ok" : "warn"}`}>
