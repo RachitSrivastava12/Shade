@@ -8,7 +8,8 @@
     "crank": "ts-node src/crank.ts",
     "maker": "ts-node src/maker.ts",
     "faucet": "ts-node src/faucet.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "reset": "ts-node src/reset.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.32.1",

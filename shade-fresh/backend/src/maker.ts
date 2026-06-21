@@ -132,24 +132,18 @@ async function cancelOrder(ctx: Ctx, id: number) {
 
 const PRICE_TOL = 2; // on-chain price units (=$0.02) — an order "matches" a desired level
 
-/** Reconcile one side to exactly the desired prices: keep one order per level, cancel
- *  stale/duplicate orders, place only what's missing. Idempotent — stable mid → no churn,
- *  a fill → one replacement, and resurrected orders from the undelegate cycle get cleaned up
- *  instead of accumulating toward the 32-order cap. Returns [placed, cancelled]. */
-async function reconcileSide(ctx: Ctx, side: number, myOrders: any[], desired: number[]): Promise<[number, number]> {
+/** Plan (don't execute) the reconciliation for one side: which resting orders to cancel
+ *  (drifted/duplicate) and which desired prices still need an order. */
+function planSide(myOrders: any[], desired: number[]): { cancels: any[]; places: number[] } {
   const used = new Set<number>();
-  const toCancel: any[] = [];
+  const cancels: any[] = [];
   for (const o of myOrders) {
     const p = Number(o.price);
     const hit = desired.find((d) => Math.abs(d - p) <= PRICE_TOL && !used.has(d));
     if (hit !== undefined) used.add(hit);
-    else toCancel.push(o); // drifted level, or a duplicate at an already-covered price
+    else cancels.push(o);
   }
-  const toPlace = desired.filter((d) => !used.has(d));
-  let placed = 0, cancelled = 0;
-  for (const o of toCancel) { try { await cancelOrder(ctx, Number(o.id)); cancelled++; } catch (e: any) { log("  cancel err:", (e.message || e).toString().slice(0, 60)); } }
-  for (const p of toPlace) { try { await placeOrder(ctx, side, p, SIZE_UNITS); placed++; } catch (e: any) { log("  place err:", (e.message || e).toString().slice(0, 60)); } }
-  return [placed, cancelled];
+  return { cancels, places: desired.filter((d) => !used.has(d)) };
 }
 
 let quotedMid = 0;
@@ -175,10 +169,36 @@ async function tick(ctx: Ctx) {
   if (drift > REQUOTE_BPS) quotedMid = mid;
   const { bids, asks } = desiredLevels(quotedMid);
 
-  const [pb, cb] = await reconcileSide(ctx, SIDE_BID, myBids, bids);
-  const [pa, ca] = await reconcileSide(ctx, SIDE_ASK, myAsks, asks);
-  const churn = pb + cb + pa + ca;
-  if (churn) log(`maker: live ${mid.toFixed(2)} · ${drift > REQUOTE_BPS ? "re-centred" : "reconciled"} bids+${pb}/-${cb} asks+${pa}/-${ca}`);
+  const bidPlan = planSide(myBids, bids);
+  const askPlan = planSide(myAsks, asks);
+
+  // CANCEL FIRST (both sides) — critical: never place a new order while a now-crossing
+  // stale order on the OTHER side still rests, or the maker self-fills (buyer==seller),
+  // which the program can't settle and which jams the queue.
+  let cancelled = 0;
+  for (const o of [...bidPlan.cancels, ...askPlan.cancels]) {
+    try { await cancelOrder(ctx, Number(o.id)); cancelled++; } catch (e: any) { log("  cancel err:", (e.message || e).toString().slice(0, 60)); }
+  }
+
+  // re-read so we place against the post-cancel book (avoids racing a stale opposite side)
+  let kept: any;
+  try { kept = await (ctx.erProgram.account as any).orderBook.fetch(ctx.book); } catch { kept = book; }
+  const restingAsk = Math.min(...(kept.asks || []).map((o: any) => Number(o.price)), Infinity);
+  const restingBid = Math.max(...(kept.bids || []).map((o: any) => Number(o.price)), -Infinity);
+
+  // PLACE — with a hard self-cross guard: a bid must stay strictly below every ask, and
+  // an ask strictly above every bid (covers both desired levels and anything still resting).
+  let placed = 0;
+  for (const p of bidPlan.places) {
+    if (p >= restingAsk || p >= Math.min(...asks)) { continue; }      // would cross an ask → skip
+    try { await placeOrder(ctx, SIDE_BID, p, SIZE_UNITS); placed++; } catch (e: any) { log("  bid err:", (e.message || e).toString().slice(0, 60)); }
+  }
+  for (const p of askPlan.places) {
+    if (p <= restingBid || p <= Math.max(...bids)) { continue; }      // would cross a bid → skip
+    try { await placeOrder(ctx, SIDE_ASK, p, SIZE_UNITS); placed++; } catch (e: any) { log("  ask err:", (e.message || e).toString().slice(0, 60)); }
+  }
+
+  if (placed + cancelled) log(`maker: live ${mid.toFixed(2)} · ${drift > REQUOTE_BPS ? "re-centred" : "reconciled"} +${placed}/-${cancelled}`);
   else log(`maker: live ${mid.toFixed(2)} · depth ok (bids ${myBids.length} asks ${myAsks.length})`);
 }
 
