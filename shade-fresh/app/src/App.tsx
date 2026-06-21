@@ -15,7 +15,7 @@ const BASE_RPC = ENV.VITE_BASE_RPC || "https://api.devnet.solana.com";
 // supports getBlockhashForAccounts (the backend crank/maker use the same endpoint).
 const ER_RPC = ENV.VITE_ER_RPC || "https://devnet-router.magicblock.app";
 const ER_WS = ENV.VITE_ER_WS || "wss://devnet-router.magicblock.app";
-const FAUCET_URL = ENV.VITE_FAUCET_URL || "";
+const FAUCET_URL = ENV.VITE_FAUCET_URL || "https://api.tradeshade.online";
 
 // on-chain size unit = 0.001 base token; price unit = quote-per-base ×100 (see program)
 const SIZE_PER_UNIT = 0.001;
