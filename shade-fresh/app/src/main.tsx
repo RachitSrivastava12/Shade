@@ -15,7 +15,9 @@ import App from "./App";
 import "./styles.css";
 
 const BASE_RPC =
-  (import.meta as any).env?.VITE_BASE_RPC || "https://api.devnet.solana.com";
+  (import.meta as any).env?.VITE_BASE_RPC ||
+  (import.meta as any).env?.VITE_PROVIDER_ENDPOINT ||
+  "https://api.devnet.solana.com";
 const SolanaConnectionProvider = ConnectionProvider as any;
 const SolanaWalletProvider = WalletProvider as any;
 const SolanaWalletModalProvider = WalletModalProvider as any;

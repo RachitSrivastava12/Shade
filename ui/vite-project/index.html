@@ -51,11 +51,23 @@ h1 .glow{color:var(--amber)}
 .chips{display:flex;align-items:center;gap:14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--faint);margin-bottom:40px;flex-wrap:wrap;justify-content:center}
 .chips i{font-style:normal;color:var(--muted)}
 .chips .sep{width:3px;height:3px;border-radius:50%;background:var(--faint)}
-.pill{display:inline-flex;align-items:center;gap:9px;padding:11px 18px;border:1px solid var(--line);
-  border-radius:999px;font-family:var(--mono);font-size:12.5px;letter-spacing:.05em;color:var(--corona);
-  background:linear-gradient(180deg,rgba(240,234,214,.03),transparent)}
-.pill .d{width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber);animation:p 1.8s ease-in-out infinite}
-@keyframes p{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ---- waitlist form ---- */
+.join{display:flex;gap:10px;width:100%;max-width:430px;margin-bottom:14px}
+.join input{flex:1;background:rgba(240,234,214,.04);border:1px solid var(--line);border-radius:12px;
+  padding:14px 16px;color:var(--corona);font-family:var(--mono);font-size:14px;outline:none;transition:border-color .15s}
+.join input::placeholder{color:var(--faint)}
+.join input:focus{border-color:rgba(233,184,114,.5)}
+.join button{background:var(--amber);color:#1a1206;border:none;border-radius:12px;padding:0 22px;
+  font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:.02em;cursor:pointer;
+  transition:filter .15s,transform .1s;white-space:nowrap}
+.join button:hover{filter:brightness(1.06)}
+.join button:active{transform:translateY(1px)}
+.join button:disabled{opacity:.55;cursor:default}
+.note{font-family:var(--mono);font-size:12px;letter-spacing:.04em;min-height:18px;color:var(--muted);transition:color .2s}
+.note.ok{color:var(--jade)} .note.err{color:var(--coral)}
+@media(max-width:480px){.join{flex-direction:column}}
+
 footer{display:flex;justify-content:space-between;padding:20px 28px;max-width:1100px;margin:0 auto;width:100%;
   font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;color:var(--faint);flex-wrap:wrap;gap:8px}
 @media(max-width:560px){nav a{font-size:11px} .eclipse{width:170px;height:170px} .shadow{width:130px;height:130px}}
@@ -72,7 +84,7 @@ footer{display:flex;justify-content:space-between;padding:20px 28px;max-width:11
     </svg>
     <span class="name">SHADE</span>
   </div>
-  <a href="https://x.com" target="_blank" rel="noopener">X &#8599;</a>
+  <a href="https://x.com/tradedotshade" target="_blank" rel="noopener">X &#8599;</a>
 </nav>
 <main>
   <div class="eclipse">
@@ -88,11 +100,61 @@ footer{display:flex;justify-content:space-between;padding:20px 28px;max-width:11
     <i>Real-time matching</i><span class="sep"></span>
     <i>Settled on Solana</i>
   </div>
-  <div class="pill"><span class="d"></span> Waitlist opening soon</div>
+
+  <form class="join" id="join" novalidate>
+    <input id="contact" type="text" inputmode="email" autocomplete="email"
+           placeholder="your email or @handle" aria-label="email or X handle" maxlength="120" />
+    <button type="submit" id="go">Join waitlist</button>
+  </form>
+  <p class="note" id="note" role="status" aria-live="polite"></p>
 </main>
 <footer>
   <span>SHADE &middot; open dark pool</span>
   <span>matched on MagicBlock &middot; settled on Solana</span>
 </footer>
+
+<script>
+  // Backend (Render). The form and the count both call this.
+  const API = "https://shade-h73q.onrender.com";
+
+  const form  = document.getElementById('join');
+  const input = document.getElementById('contact');
+  const go    = document.getElementById('go');
+  const note  = document.getElementById('note');
+
+  // social proof: how many already joined
+  fetch(API + '/api/waitlist/count')
+    .then(r => r.json())
+    .then(d => { if (d && d.ok && d.total > 0) note.textContent = d.total.toLocaleString() + ' already in the shade'; })
+    .catch(() => {});
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const contact = input.value.trim();
+    note.className = 'note';
+    if (!contact) { note.textContent = 'enter your email or @handle'; note.classList.add('err'); return; }
+
+    go.disabled = true; const label = go.textContent; go.textContent = 'joining…';
+    try {
+      const r = await fetch(API + '/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact })
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok) throw new Error(d.error || 'failed');
+
+      form.style.display = 'none';
+      note.className = 'note ok';
+      note.textContent = d.already
+        ? "you're already on the list 🌒"
+        : "you're in the shade 🌒 — we'll be in touch.";
+    } catch (err) {
+      go.disabled = false; go.textContent = label;
+      note.className = 'note err';
+      note.textContent = (err && err.message) ? err.message : 'something went wrong — try again.';
+    }
+  });
+</script>
 </body>
 </html>

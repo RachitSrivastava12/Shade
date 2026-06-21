@@ -117,16 +117,23 @@ cp app/.env.example app/.env
 cd app && npm run dev
 ```
 
-### 6 · Run the settlement engine
-In a separate terminal (with the env exports above):
+### 6 · Run the backend services
+The always-on backend lives in **`shade-fresh/backend/`** (crank · market maker · faucet) and is what makes Shade tradable for real visitors:
+
 ```bash
-npm run crank            # delegates the book, watches for fills, settles + re-delegates
+cd backend && npm install
+cp .env.example .env     # set ANCHOR_WALLET, PROVIDER_ENDPOINT, USDC_MINT
+npm run crank            # settlement engine: delegates, watches for fills, settles + re-delegates
+npm run maker            # liquidity: quotes both sides near the live SOL price (auto-funds inventory)
+npm run faucet           # HTTP faucet on :8787 — drips mock USDC + gas so fresh wallets can buy
 ```
 
-Now connect a wallet in the UI, deposit, and place an order. To match it from a second wallet for testing:
+Now connect a wallet in the UI, claim test funds, deposit, and place an order — the maker is the counterparty and the crank settles the fill. To match from a second wallet manually:
 ```bash
 PRICE=187 npm run cli:buyer
 ```
+
+**Deploy the backend to a VPS:** see [`backend/DEPLOY.md`](./shade-fresh/backend/DEPLOY.md) (pm2 or systemd, plus an nginx/TLS faucet proxy).
 
 ---
 

@@ -1,0 +1,16 @@
+[Unit]
+Description=Shade settlement crank
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/shade-backend
+EnvironmentFile=/opt/shade-backend/.env
+ExecStart=/opt/shade-backend/node_modules/.bin/ts-node src/crank.ts
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

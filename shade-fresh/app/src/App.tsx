@@ -11,9 +11,14 @@ import { MARKETS, Market, Stats, fetchAllTickers } from "./lib/markets";
 
 const ENV = (import.meta as any).env || {};
 const BASE_RPC = ENV.VITE_BASE_RPC || "https://api.devnet.solana.com";
-const ER_RPC = ENV.VITE_ER_RPC || "https://devnet-as.magicblock.app/";
-const ER_WS = ENV.VITE_ER_WS || "wss://devnet-as.magicblock.app/";
+// Magic Router — routes ER writes to whichever validator holds the delegated book and
+// supports getBlockhashForAccounts (the backend crank/maker use the same endpoint).
+const ER_RPC = ENV.VITE_ER_RPC || "https://devnet-router.magicblock.app";
+const ER_WS = ENV.VITE_ER_WS || "wss://devnet-router.magicblock.app";
+const FAUCET_URL = ENV.VITE_FAUCET_URL || "";
 
+// on-chain size unit = 0.001 base token; price unit = quote-per-base ×100 (see program)
+const SIZE_PER_UNIT = 0.001;
 const TAKER_FEE = 0.0005;
 const fmt = (n: number, d = 2) => n.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
 const dec = (p: number) => (p < 1 ? 5 : 2);
@@ -52,6 +57,8 @@ export default function App() {
   const [depSol, setDepSol] = useState("0.05");
   const [depUsdc, setDepUsdc] = useState("100");
   const [funds, setFunds] = useState(false);
+  const [faucetMsg, setFaucetMsg] = useState("");
+  const [faucetBusy, setFaucetBusy] = useState(false);
   const [engine, setEngine] = useState<CrankStatus | null>(null);
   const crankRef = useRef<Crank | null>(null);
 
@@ -140,7 +147,8 @@ export default function App() {
   };
 
   const me = wallet?.publicKey?.toBase58();
-  const px = (p: number) => p / 100;
+  const px = (p: number) => p / 100;            // on-chain price -> USDC
+  const sz = (u: number) => u * SIZE_PER_UNIT;  // on-chain size units -> SOL
   const asks = (book?.asks || []).slice(0, 8);
   const bids = (book?.bids || []).slice(0, 8);
   const maxSz = Math.max(1, ...asks.map((o) => o.size), ...bids.map((o) => o.size));
@@ -151,12 +159,41 @@ export default function App() {
   const lastDir = (book?.lastPrice || 0) >= prevLast ? "up" : "down";
   const myOrders = [...bids.map((o) => ({ ...o, s: "bid" })), ...asks.map((o) => ({ ...o, s: "ask" }))].filter((o) => o.owner === me);
 
-  const priceNum = parseFloat(price) || 0, sizeNum = parseFloat(size) || 0;
+  const priceNum = parseFloat(price) || 0, sizeNum = parseFloat(size) || 0;  // sizeNum is in SOL
   const orderValue = priceNum * sizeNum, fee = orderValue * TAKER_FEE;
+
+  // credited balances (what settlement actually draws from), in human units
+  const baseFreeSol = bal ? bal.baseFree / 1e9 : 0;
+  const quoteFreeUsdc = bal ? bal.quoteFree / 1e6 : 0;
+  // already-committed exposure from my resting orders (settlement strictly in fill order,
+  // so an order I can't cover would jam the whole queue — count open orders too).
+  const myOpenBidUsdc = (book?.bids || []).filter((o) => o.owner === me).reduce((s, o) => s + px(o.price) * sz(o.size), 0);
+  const myOpenAskSol = (book?.asks || []).filter((o) => o.owner === me).reduce((s, o) => s + sz(o.size), 0);
+  // a buy settles by paying USDC (price*size); a sell settles by delivering SOL (size)
+  const needUsdc = side === SIDE_BID ? orderValue : 0;
+  const needSol = side === SIDE_ASK ? sizeNum : 0;
+  const underfunded = !!client && market.live && sizeNum > 0 && priceNum > 0 &&
+    (needUsdc + myOpenBidUsdc > quoteFreeUsdc + 1e-9 || needSol + myOpenAskSol > baseFreeSol + 1e-9);
 
   const placeOrder = () => {
     if (!client || !market.live) return;
-    run(`place ${side === SIDE_BID ? "buy" : "sell"} ${sizeNum} ${market.base}`, "er", () => client.placeOrder(side, Math.round(priceNum * 100), sizeNum));
+    const units = Math.max(1, Math.round(sizeNum / SIZE_PER_UNIT));
+    run(`place ${side === SIDE_BID ? "buy" : "sell"} ${sizeNum} ${market.base}`, "er", () => client.placeOrder(side, Math.round(priceNum * 100), units));
+  };
+
+  const claimFaucet = async () => {
+    if (!FAUCET_URL || !me || faucetBusy) return;
+    setFaucetBusy(true); setFaucetMsg("requesting test funds…");
+    try {
+      const r = await fetch(FAUCET_URL.replace(/\/$/, "") + "/faucet", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: me }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "faucet failed");
+      setFaucetMsg(`✓ sent ${d.usdc} USDC + ${d.sol} SOL — now deposit below to trade`);
+      setFunds(true);
+    } catch (e: any) { setFaucetMsg("✕ " + (e?.message || e).toString().slice(0, 90)); }
+    finally { setFaucetBusy(false); }
   };
 
   return (
@@ -233,12 +270,12 @@ export default function App() {
               <>
                 <div className="book-cols"><span>Price</span><span>Size</span><span>Total</span></div>
                 <div className="book-asks">
-                  {asks.slice().reverse().map((o) => (<div className="brow ask" key={`a${o.id}`}><span className="bar" style={{ width: `${(o.size / maxSz) * 100}%` }} /><span className="p">{fmt(px(o.price))}</span><span className="s">{fmt(o.size, 4)}</span><span className="t">{fmt(o.size * px(o.price))}</span></div>))}
+                  {asks.slice().reverse().map((o) => (<div className="brow ask" key={`a${o.id}`}><span className="bar" style={{ width: `${(o.size / maxSz) * 100}%` }} /><span className="p">{fmt(px(o.price))}</span><span className="s">{fmt(sz(o.size), 4)}</span><span className="t">{fmt(sz(o.size) * px(o.price))}</span></div>))}
                   {!asks.length && <div className="mini-empty">no asks</div>}
                 </div>
                 <div className="book-mid"><span className={`ml ${lastDir}`}>{book?.lastPrice ? fmt(px(book.lastPrice)) : "—"} {book?.lastPrice ? (lastDir === "up" ? "↑" : "↓") : ""}</span><span className="ms">spread {spread != null ? fmt(spread) : "—"}</span></div>
                 <div className="book-bids">
-                  {bids.map((o) => (<div className="brow bid" key={`b${o.id}`}><span className="bar" style={{ width: `${(o.size / maxSz) * 100}%` }} /><span className="p">{fmt(px(o.price))}</span><span className="s">{fmt(o.size, 4)}</span><span className="t">{fmt(o.size * px(o.price))}</span></div>))}
+                  {bids.map((o) => (<div className="brow bid" key={`b${o.id}`}><span className="bar" style={{ width: `${(o.size / maxSz) * 100}%` }} /><span className="p">{fmt(px(o.price))}</span><span className="s">{fmt(sz(o.size), 4)}</span><span className="t">{fmt(sz(o.size) * px(o.price))}</span></div>))}
                   {!bids.length && <div className="mini-empty">no bids — be the first maker</div>}
                 </div>
                 <div className="ratio"><div className="ratio-bar"><span className="rb-buy" style={{ width: `${buyPct}%` }} /><span className="rb-sell" style={{ width: `${100 - buyPct}%` }} /></div><div className="ratio-lab"><span className="up">Buy {buyPct}%</span><span className="down">{100 - buyPct}% Sell</span></div></div>
@@ -246,7 +283,7 @@ export default function App() {
             )
           ) : (
             <div className="trades-list">
-              {(book?.fills || []).slice(0, 16).map((f) => (<div className="trow" key={f.id}><span className="p up">{fmt(px(f.price))}</span><span className="s">{fmt(f.size, 4)}</span><span className={`tag ${f.buyer === me || f.seller === me ? "you" : ""}`}>{f.buyer === me ? "buy" : f.seller === me ? "sell" : "fill"}</span></div>))}
+              {(book?.fills || []).slice(0, 16).map((f) => (<div className="trow" key={f.id}><span className="p up">{fmt(px(f.price))}</span><span className="s">{fmt(sz(f.size), 4)}</span><span className={`tag ${f.buyer === me || f.seller === me ? "you" : ""}`}>{f.buyer === me ? "buy" : f.seller === me ? "sell" : "fill"}</span></div>))}
               {!book?.fills?.length && <div className="mini-empty" style={{ padding: 20 }}>no trades yet</div>}
             </div>
           )}
@@ -276,12 +313,12 @@ export default function App() {
                 {botTab === "orders" ? (
                   myOrders.length ? (
                     <table className="bt"><thead><tr><th>Market</th><th>Side</th><th>Price</th><th>Size</th><th>Value</th><th></th></tr></thead>
-                      <tbody>{myOrders.map((o) => (<tr key={`${o.s}${o.id}`}><td>{market.label}</td><td className={o.s === "bid" ? "up" : "down"}>{o.s === "bid" ? "Buy" : "Sell"}</td><td className="m">{fmt(px(o.price))}</td><td className="m">{fmt(o.size, 4)}</td><td className="m">${fmt(o.size * px(o.price))}</td><td><button className="cancel" onClick={() => run("cancel order", "er", () => client!.cancelOrder(o.id))}>cancel</button></td></tr>))}</tbody></table>
+                      <tbody>{myOrders.map((o) => (<tr key={`${o.s}${o.id}`}><td>{market.label}</td><td className={o.s === "bid" ? "up" : "down"}>{o.s === "bid" ? "Buy" : "Sell"}</td><td className="m">{fmt(px(o.price))}</td><td className="m">{fmt(sz(o.size), 4)}</td><td className="m">${fmt(sz(o.size) * px(o.price))}</td><td><button className="cancel" onClick={() => run("cancel order", "er", () => client!.cancelOrder(o.id))}>cancel</button></td></tr>))}</tbody></table>
                   ) : <div className="bot-empty">{!me ? "connect wallet to see your orders" : "no open orders"}</div>
                 ) : (
                   (book?.fills || []).length ? (
                     <table className="bt"><thead><tr><th>Market</th><th>Side</th><th>Price</th><th>Size</th><th>Value</th></tr></thead>
-                      <tbody>{(book?.fills || []).slice(0, 12).map((f) => (<tr key={f.id}><td>{market.label}</td><td className={f.buyer === me ? "up" : f.seller === me ? "down" : ""}>{f.buyer === me ? "Buy" : f.seller === me ? "Sell" : "—"}</td><td className="m">{fmt(px(f.price))}</td><td className="m">{fmt(f.size, 4)}</td><td className="m">${fmt(f.size * px(f.price))}</td></tr>))}</tbody></table>
+                      <tbody>{(book?.fills || []).slice(0, 12).map((f) => (<tr key={f.id}><td>{market.label}</td><td className={f.buyer === me ? "up" : f.seller === me ? "down" : ""}>{f.buyer === me ? "Buy" : f.seller === me ? "Sell" : "—"}</td><td className="m">{fmt(px(f.price))}</td><td className="m">{fmt(sz(f.size), 4)}</td><td className="m">${fmt(sz(f.size) * px(f.price))}</td></tr>))}</tbody></table>
                   ) : <div className="bot-empty">no trade history yet</div>
                 )}
               </div>
@@ -298,7 +335,7 @@ export default function App() {
           <div className="seg2"><button className={side === SIDE_BID ? "on buy" : ""} onClick={() => setSide(SIDE_BID)}>Buy</button><button className={side === SIDE_ASK ? "on sell" : ""} onClick={() => setSide(SIDE_ASK)}>Sell</button></div>
           <div className="tp-field"><div className="tp-flab"><span>Size</span><span className="avail">{market.base}</span></div><input value={size} onChange={(e) => setSize(e.target.value)} placeholder="0.00" inputMode="decimal" /></div>
           <div className="tp-field"><div className="tp-flab"><span>Limit price</span><span className="avail">{stats ? `mkt ${fmt(stats.price, dec(stats.price))}` : ""}</span></div><input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" inputMode="decimal" /></div>
-          <button className={`tp-cta ${side === SIDE_BID ? "buy" : "sell"}`} disabled={!client || !market.live || !sizeNum || !priceNum} onClick={placeOrder}>{!market.live ? "book launching soon" : !client ? "connect wallet" : `${side === SIDE_BID ? "Buy" : "Sell"} ${market.base} in shade`}</button>
+          <button className={`tp-cta ${side === SIDE_BID ? "buy" : "sell"}`} disabled={!client || !market.live || !sizeNum || !priceNum || underfunded} onClick={placeOrder}>{!market.live ? "book launching soon" : !client ? "connect wallet" : underfunded ? `deposit ${side === SIDE_BID ? "USDC" : "SOL"} to ${side === SIDE_BID ? "buy" : "sell"}` : `${side === SIDE_BID ? "Buy" : "Sell"} ${market.base} in shade`}</button>
           <div className="slip-row"><span>Slippage</span><div className="slip-opts">{[0.1, 0.5, 1].map((s) => (<button key={s} className={slip === s ? "on" : ""} onClick={() => setSlip(s)}>{s}%</button>))}</div></div>
           <div className="summary">
             <div className="sr"><span>Order Value</span><span>${fmt(orderValue)}</span></div>
@@ -319,6 +356,12 @@ export default function App() {
           <button className="ops-toggle" onClick={() => setFunds((v) => !v)}>{funds ? "▾" : "▸"} funds · deposit / withdraw</button>
           {funds && (
             <div className="funds">
+              {FAUCET_URL && (
+                <div className="faucet-row">
+                  <button className="faucet-btn" disabled={!me || faucetBusy} onClick={claimFaucet}>{faucetBusy ? "sending…" : "🚰 get test USDC + gas"}</button>
+                  {faucetMsg && <div className="faucet-msg">{faucetMsg}</div>}
+                </div>
+              )}
               <div className="bal-row"><span>wSOL credited</span><span className="m">{bal ? (bal.baseFree / 1e9).toFixed(4) : "—"}</span></div>
               <div className="bal-row"><span>USDC credited</span><span className="m">{bal ? (bal.quoteFree / 1e6).toFixed(2) : "—"}</span></div>
               <div className="dep-grid">
@@ -373,8 +416,8 @@ function DepthView({ bids, asks, pxScale }: { bids: any[]; asks: any[]; pxScale:
   const maxCum = Math.max(bids.reduce((s, o) => s + o.size, 0), asks.reduce((s, o) => s + o.size, 0), 1);
   return (
     <div className="depthview">
-      <div className="dv-side bids">{bids.map((o) => { cumB += o.size; return (<div className="dv-row" key={o.id}><span className="dv-bar bid" style={{ width: `${(cumB / maxCum) * 100}%` }} /><span className="dv-p bid">{pxScale(o.price).toFixed(2)}</span><span className="dv-c">{cumB.toFixed(2)}</span></div>); })}</div>
-      <div className="dv-side asks">{asks.map((o) => { cumA += o.size; return (<div className="dv-row" key={o.id}><span className="dv-bar ask" style={{ width: `${(cumA / maxCum) * 100}%` }} /><span className="dv-p ask">{pxScale(o.price).toFixed(2)}</span><span className="dv-c">{cumA.toFixed(2)}</span></div>); })}</div>
+      <div className="dv-side bids">{bids.map((o) => { cumB += o.size; return (<div className="dv-row" key={o.id}><span className="dv-bar bid" style={{ width: `${(cumB / maxCum) * 100}%` }} /><span className="dv-p bid">{pxScale(o.price).toFixed(2)}</span><span className="dv-c">{(cumB * SIZE_PER_UNIT).toFixed(4)}</span></div>); })}</div>
+      <div className="dv-side asks">{asks.map((o) => { cumA += o.size; return (<div className="dv-row" key={o.id}><span className="dv-bar ask" style={{ width: `${(cumA / maxCum) * 100}%` }} /><span className="dv-p ask">{pxScale(o.price).toFixed(2)}</span><span className="dv-c">{(cumA * SIZE_PER_UNIT).toFixed(4)}</span></div>); })}</div>
     </div>
   );
 }

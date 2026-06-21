@@ -129,9 +129,12 @@ export class ShadeClient {
   async depositQuoteUsdc(usdc: number) {
     const amount = Math.round(usdc * 1e6);
     const ata = getAssociatedTokenAddressSync(this.quoteMint, this.me);
+    // init the user's balance ledger if this is their first action (e.g. a buyer who
+    // funded via the faucet and deposits USDC before ever touching SOL).
+    const pre: anchor.web3.TransactionInstruction[] = [...(await this.ensureUserIx())];
     return this.program.methods.depositQuote(new BN(amount))
       .accounts({ book: this.book, userBalance: this.myBal(), vaultQuote: this.vaultQuote, userToken: ata, owner: this.me, tokenProgram: TOKEN_PROGRAM_ID })
-      .rpc({ skipPreflight: true });
+      .preInstructions(pre).rpc({ skipPreflight: true });
   }
 
   async withdrawBaseSol(sol: number) {

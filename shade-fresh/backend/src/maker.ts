@@ -1,0 +1,197 @@
+/**
+ * Shade market maker. Continuously quotes a ladder of bids + asks around the live
+ * SOL/USDC price on the Ephemeral Rollup, so any visitor always has a counterparty.
+ *
+ * It keeps its own credited inventory topped up (mints mock USDC — the maker wallet
+ * is the USDC mint authority — and wraps SOL into wSOL as needed) so every fill it
+ * takes can actually settle.
+ *
+ *   npm run maker
+ *   pm2 start ecosystem.config.cjs --only shade-maker
+ *
+ * The maker wallet is normally the SAME wallet as the crank (the program authority /
+ * USDC mint authority). It never self-crosses because bids always sit below asks.
+ */
+import { BN } from "@coral-xyz/anchor";
+import { SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import {
+  TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+  createAssociatedTokenAccountInstruction,
+  createSyncNativeInstruction,
+  createMintToInstruction,
+  getAccount,
+} from "@solana/spl-token";
+import {
+  makeCtx, sendOnER, bookOnBase, log, sleep, quoteMint, NATIVE_MINT,
+  SIDE_BID, SIDE_ASK, BASE_LAMPORTS_PER_SIZE, Ctx,
+} from "./config";
+
+// ---- tunables (env-overridable) ----
+const LEVELS = Number(process.env.MM_LEVELS || 4);          // price levels per side
+const SIZE_UNITS = Number(process.env.MM_SIZE || 10);       // size per level (10 = 0.01 SOL)
+const SPREAD_BPS = Number(process.env.MM_SPREAD_BPS || 8);  // half-spread of the innermost level
+const STEP_BPS = Number(process.env.MM_STEP_BPS || 6);      // gap between successive levels
+const REQUOTE_BPS = Number(process.env.MM_REQUOTE_BPS || 12); // re-centre when mid drifts this far
+const TICK_MS = Number(process.env.MM_TICK_MS || 7000);
+const MIN_BASE_LAMPORTS = Number(process.env.MM_MIN_BASE_SOL || 0.1) * LAMPORTS_PER_SOL;
+const MIN_QUOTE_MICRO = Number(process.env.MM_MIN_QUOTE_USDC || 50) * 1e6;
+const TOPUP_BASE_SOL = Number(process.env.MM_TOPUP_BASE_SOL || 0.3);
+const TOPUP_QUOTE_USDC = Number(process.env.MM_TOPUP_QUOTE_USDC || 200);
+
+const bps = (n: number, b: number) => n * (1 + b / 10000);
+
+async function livePrice(): Promise<number | null> {
+  try {
+    const r = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT");
+    if (!r.ok) return null;
+    const d: any = await r.json();
+    const p = Number(d.price);
+    return Number.isFinite(p) && p > 0 ? p : null;
+  } catch { return null; }
+}
+
+async function fetchBalance(ctx: Ctx): Promise<{ baseFree: number; quoteFree: number } | null> {
+  try {
+    const b: any = await (ctx.program.account as any).userBalance.fetch(ctx.balPda(ctx.kp.publicKey));
+    return { baseFree: Number(b.baseFree), quoteFree: Number(b.quoteFree) };
+  } catch { return null; }
+}
+
+/** Make sure the maker has a UserBalance ledger + enough credited base/quote to settle its quotes. */
+async function ensureInventory(ctx: Ctx) {
+  const me = ctx.kp.publicKey;
+  const usdc = quoteMint();
+  let bal = await fetchBalance(ctx);
+
+  // init the ledger once
+  if (!bal) {
+    log("maker: init_user…");
+    await ctx.program.methods.initUser()
+      .accounts({ book: ctx.book, userBalance: ctx.balPda(me), owner: me, systemProgram: SystemProgram.programId })
+      .rpc({ skipPreflight: true });
+    bal = { baseFree: 0, quoteFree: 0 };
+  }
+
+  // top up wSOL (base) by wrapping native SOL
+  if (bal.baseFree < MIN_BASE_LAMPORTS) {
+    const lamports = Math.round(TOPUP_BASE_SOL * LAMPORTS_PER_SOL);
+    const ata = getAssociatedTokenAddressSync(NATIVE_MINT, me);
+    const pre: any[] = [];
+    try { await getAccount(ctx.baseConn, ata); }
+    catch { pre.push(createAssociatedTokenAccountInstruction(me, ata, me, NATIVE_MINT)); }
+    pre.push(SystemProgram.transfer({ fromPubkey: me, toPubkey: ata, lamports }));
+    pre.push(createSyncNativeInstruction(ata));
+    log(`maker: depositing ${TOPUP_BASE_SOL} wSOL inventory…`);
+    await ctx.program.methods.depositBase(new BN(lamports))
+      .accounts({ book: ctx.book, userBalance: ctx.balPda(me), vaultBase: ctx.vaultBase, userToken: ata, owner: me, tokenProgram: TOKEN_PROGRAM_ID })
+      .preInstructions(pre).rpc({ skipPreflight: true });
+  }
+
+  // top up USDC (quote) by minting mock USDC to ourselves (we are the mint authority)
+  if (bal.quoteFree < MIN_QUOTE_MICRO) {
+    const amount = Math.round(TOPUP_QUOTE_USDC * 1e6);
+    const ata = getAssociatedTokenAddressSync(usdc, me);
+    const pre: any[] = [];
+    try { await getAccount(ctx.baseConn, ata); }
+    catch { pre.push(createAssociatedTokenAccountInstruction(me, ata, me, usdc)); }
+    pre.push(createMintToInstruction(usdc, ata, me, amount));
+    log(`maker: minting + depositing ${TOPUP_QUOTE_USDC} USDC inventory…`);
+    await ctx.program.methods.depositQuote(new BN(amount))
+      .accounts({ book: ctx.book, userBalance: ctx.balPda(me), vaultQuote: ctx.vaultQuote, userToken: ata, owner: me, tokenProgram: TOKEN_PROGRAM_ID })
+      .preInstructions(pre).rpc({ skipPreflight: true });
+  }
+}
+
+/** desired on-chain price levels (price = usd * 100) around a centre price */
+function desiredLevels(midUsd: number) {
+  const bids: number[] = [], asks: number[] = [];
+  for (let i = 0; i < LEVELS; i++) {
+    const off = SPREAD_BPS + i * STEP_BPS;
+    bids.push(Math.round(bps(midUsd, -off) * 100));
+    asks.push(Math.round(bps(midUsd, off) * 100));
+  }
+  return { bids, asks };
+}
+
+async function placeOrder(ctx: Ctx, side: number, price: number, size: number) {
+  let err: any;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const tx = await ctx.erProgram.methods.placeOrder(side, new BN(price), new BN(size))
+        .accounts({ book: ctx.book, trader: ctx.kp.publicKey }).transaction();
+      return await sendOnER(ctx, tx);
+    } catch (e) { err = e; await sleep(1500); }
+  }
+  throw err;
+}
+async function cancelOrder(ctx: Ctx, id: number) {
+  const tx = await ctx.erProgram.methods.cancelOrder(new BN(id)).accounts({ book: ctx.book, trader: ctx.kp.publicKey }).transaction();
+  return sendOnER(ctx, tx);
+}
+
+const PRICE_TOL = 2; // on-chain price units (=$0.02) — an order "matches" a desired level
+
+/** Reconcile one side to exactly the desired prices: keep one order per level, cancel
+ *  stale/duplicate orders, place only what's missing. Idempotent — stable mid → no churn,
+ *  a fill → one replacement, and resurrected orders from the undelegate cycle get cleaned up
+ *  instead of accumulating toward the 32-order cap. Returns [placed, cancelled]. */
+async function reconcileSide(ctx: Ctx, side: number, myOrders: any[], desired: number[]): Promise<[number, number]> {
+  const used = new Set<number>();
+  const toCancel: any[] = [];
+  for (const o of myOrders) {
+    const p = Number(o.price);
+    const hit = desired.find((d) => Math.abs(d - p) <= PRICE_TOL && !used.has(d));
+    if (hit !== undefined) used.add(hit);
+    else toCancel.push(o); // drifted level, or a duplicate at an already-covered price
+  }
+  const toPlace = desired.filter((d) => !used.has(d));
+  let placed = 0, cancelled = 0;
+  for (const o of toCancel) { try { await cancelOrder(ctx, Number(o.id)); cancelled++; } catch (e: any) { log("  cancel err:", (e.message || e).toString().slice(0, 60)); } }
+  for (const p of toPlace) { try { await placeOrder(ctx, side, p, SIZE_UNITS); placed++; } catch (e: any) { log("  place err:", (e.message || e).toString().slice(0, 60)); } }
+  return [placed, cancelled];
+}
+
+let quotedMid = 0;
+
+async function tick(ctx: Ctx) {
+  const mid = await livePrice();
+  if (!mid) { log("maker: no live price, skipping"); return; }
+
+  // the crank periodically undelegates to settle; just wait those windows out
+  if (await bookOnBase(ctx)) { log("maker: book on base (settling) — waiting"); return; }
+
+  let book: any;
+  try { book = await (ctx.erProgram.account as any).orderBook.fetch(ctx.book); }
+  catch { log("maker: ER read failed — waiting"); return; }
+
+  const me = ctx.kp.publicKey.toBase58();
+  const myBids = (book.bids || []).filter((o: any) => o.owner.toBase58() === me);
+  const myAsks = (book.asks || []).filter((o: any) => o.owner.toBase58() === me);
+
+  // only re-centre the desired prices when the live price drifts past tolerance — this
+  // keeps target prices stable tick-to-tick so reconciliation doesn't churn needlessly.
+  const drift = quotedMid ? Math.abs(mid - quotedMid) / quotedMid * 10000 : Infinity;
+  if (drift > REQUOTE_BPS) quotedMid = mid;
+  const { bids, asks } = desiredLevels(quotedMid);
+
+  const [pb, cb] = await reconcileSide(ctx, SIDE_BID, myBids, bids);
+  const [pa, ca] = await reconcileSide(ctx, SIDE_ASK, myAsks, asks);
+  const churn = pb + cb + pa + ca;
+  if (churn) log(`maker: live ${mid.toFixed(2)} · ${drift > REQUOTE_BPS ? "re-centred" : "reconciled"} bids+${pb}/-${cb} asks+${pa}/-${ca}`);
+  else log(`maker: live ${mid.toFixed(2)} · depth ok (bids ${myBids.length} asks ${myAsks.length})`);
+}
+
+async function main() {
+  const ctx = makeCtx();
+  log("SHADE MAKER (liquidity bot)");
+  log("  wallet:", ctx.kp.publicKey.toBase58());
+  log("  book  :", ctx.book.toBase58());
+  log(`  ${LEVELS} levels/side · size ${SIZE_UNITS} (${(SIZE_UNITS * BASE_LAMPORTS_PER_SIZE / LAMPORTS_PER_SOL)} SOL) · spread ${SPREAD_BPS}bps step ${STEP_BPS}bps\n`);
+  while (true) {
+    try { await ensureInventory(ctx); } catch (e: any) { log("inventory err:", (e.message || e).toString().slice(0, 120)); }
+    try { await tick(ctx); } catch (e: any) { log("maker tick err:", (e.message || e).toString().slice(0, 120)); }
+    await sleep(TICK_MS);
+  }
+}
+main().catch((e) => { console.error(e); process.exit(1); });
