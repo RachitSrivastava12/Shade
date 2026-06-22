@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAnchorWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import * as anchor from "@coral-xyz/anchor";
-import { ShadeClient, makeProviders, SIDE_BID, SIDE_ASK, BookJSON, bookPda } from "./lib/shade";
+import { ShadeClient, makeProviders, SIDE_BID, SIDE_ASK, BookJSON, bookPda, DEFAULT_RPC } from "./lib/shade";
 import { Crank, getCrankKeypair, CrankStatus } from "./lib/crank";
 import { PublicKey } from "@solana/web3.js";
 import { ShadeMark } from "./Logo";
@@ -10,7 +10,7 @@ import { TradingViewChart } from "./TradingViewChart";
 import { MARKETS, Market, Stats, fetchAllTickers } from "./lib/markets";
 
 const ENV = (import.meta as any).env || {};
-const BASE_RPC = ENV.VITE_BASE_RPC || "https://api.devnet.solana.com";
+const BASE_RPC = ENV.VITE_BASE_RPC || ENV.VITE_PROVIDER_ENDPOINT || DEFAULT_RPC;
 // Magic Router — routes ER writes to whichever validator holds the delegated book and
 // supports getBlockhashForAccounts (the backend crank/maker use the same endpoint).
 const ER_RPC = ENV.VITE_ER_RPC || "https://devnet-router.magicblock.app";

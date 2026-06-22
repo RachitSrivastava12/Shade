@@ -14,10 +14,11 @@ import "@solana/wallet-adapter-react-ui/styles.css";
 import App from "./App";
 import "./styles.css";
 
+import { DEFAULT_RPC } from "./lib/shade";
 const BASE_RPC =
   (import.meta as any).env?.VITE_BASE_RPC ||
   (import.meta as any).env?.VITE_PROVIDER_ENDPOINT ||
-  "https://api.devnet.solana.com";
+  DEFAULT_RPC;
 const SolanaConnectionProvider = ConnectionProvider as any;
 const SolanaWalletProvider = WalletProvider as any;
 const SolanaWalletModalProvider = WalletModalProvider as any;
