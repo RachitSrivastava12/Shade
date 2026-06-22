@@ -28,8 +28,11 @@ function nodeEnv(k: string): string | undefined {
 // set, so the app never falls back to rate-limited public devnet (which returns empty reads).
 export const DEFAULT_RPC = "https://divine-fittest-season.solana-devnet.quiknode.pro/17750ffdb134b9cfe0539702c9f709ff4a855f60/";
 export const BASE_RPC = nodeEnv("PROVIDER_ENDPOINT") || DEFAULT_RPC;
-export const ER_RPC = nodeEnv("EPHEMERAL_PROVIDER_ENDPOINT") || "https://devnet-router.magicblock.app";
-export const ER_WS = nodeEnv("EPHEMERAL_WS_ENDPOINT") || "wss://devnet-router.magicblock.app";
+// Direct devnet ER validator endpoint. We use this instead of the Magic Router
+// (devnet-router.magicblock.app) because the router has outages; the book is always
+// delegated to a fixed validator (MAS1Dt9…) that this endpoint serves directly.
+export const ER_RPC = nodeEnv("EPHEMERAL_PROVIDER_ENDPOINT") || "https://devnet.magicblock.app";
+export const ER_WS = nodeEnv("EPHEMERAL_WS_ENDPOINT") || "wss://devnet.magicblock.app";
 export const ER_VALIDATOR = new PublicKey(nodeEnv("VALIDATOR") || "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57");
 
 // wSOL is the base mint. USDC mint comes from env, defaulting to the live devnet mock USDC.

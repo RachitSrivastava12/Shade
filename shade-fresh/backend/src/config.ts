@@ -24,8 +24,11 @@ export const NATIVE_MINT = new PublicKey("So111111111111111111111111111111111111
 
 // ---- endpoints ----
 export const BASE_RPC = process.env.PROVIDER_ENDPOINT || "https://api.devnet.solana.com";
-export const ER_RPC = process.env.EPHEMERAL_PROVIDER_ENDPOINT || "https://devnet-router.magicblock.app";
-export const ER_WS = process.env.EPHEMERAL_WS_ENDPOINT || "wss://devnet-router.magicblock.app";
+// Direct devnet ER validator endpoint — used instead of the Magic Router
+// (devnet-router.magicblock.app), which has outages. The book is delegated to a fixed
+// validator (MAS1Dt9…) that this endpoint serves directly.
+export const ER_RPC = process.env.EPHEMERAL_PROVIDER_ENDPOINT || "https://devnet.magicblock.app";
+export const ER_WS = process.env.EPHEMERAL_WS_ENDPOINT || "wss://devnet.magicblock.app";
 export const ER_VALIDATOR = new PublicKey(process.env.VALIDATOR || "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57");
 
 // ---- IDL ----

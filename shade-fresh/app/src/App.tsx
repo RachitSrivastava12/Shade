@@ -11,10 +11,10 @@ import { MARKETS, Market, Stats, fetchAllTickers } from "./lib/markets";
 
 const ENV = (import.meta as any).env || {};
 const BASE_RPC = ENV.VITE_BASE_RPC || ENV.VITE_PROVIDER_ENDPOINT || DEFAULT_RPC;
-// Magic Router — routes ER writes to whichever validator holds the delegated book and
-// supports getBlockhashForAccounts (the backend crank/maker use the same endpoint).
-const ER_RPC = ENV.VITE_ER_RPC || "https://devnet-router.magicblock.app";
-const ER_WS = ENV.VITE_ER_WS || "wss://devnet-router.magicblock.app";
+// Direct ER validator endpoint (the Magic Router has outages; the book is always
+// delegated to a fixed validator this endpoint serves). Same endpoint the backend uses.
+const ER_RPC = ENV.VITE_ER_RPC || "https://devnet.magicblock.app";
+const ER_WS = ENV.VITE_ER_WS || "wss://devnet.magicblock.app";
 const FAUCET_URL = ENV.VITE_FAUCET_URL || "https://api.tradeshade.online";
 
 // on-chain size unit = 0.001 base token; price unit = quote-per-base ×100 (see program)
