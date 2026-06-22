@@ -54,6 +54,7 @@ export default function App() {
   const [marketSel, setMarketSel] = useState(false);
   const [lastTx, setLastTx] = useState<{ label: string; sig: string; layer: "base" | "er" } | null>(null);
   const [bal, setBal] = useState<{ baseFree: number; quoteFree: number } | null>(null);
+  const [hold, setHold] = useState<{ sol: number; usdc: number } | null>(null);
   const [depSol, setDepSol] = useState("0.05");
   const [depUsdc, setDepUsdc] = useState("100");
   const [funds, setFunds] = useState(false);
@@ -129,7 +130,7 @@ export default function App() {
     catch { try { const b = await client.fetchBookBase(); setBook((p) => { setPrevLast(p?.lastPrice || 0); return b; }); setSrc("base"); } catch { setSrc("—"); } }
   }, [client, market]);
   useEffect(() => { if (!client || !market.live) return; refresh(); const t = setInterval(refresh, 1500); return () => clearInterval(t); }, [client, market, refresh]);
-  useEffect(() => { if (!client) { setBal(null); return; } const f = () => client.fetchMyBalance().then((b) => setBal(b ? { baseFree: b.baseFree, quoteFree: b.quoteFree } : null)).catch(() => {}); f(); const t = setInterval(f, 2500); return () => clearInterval(t); }, [client]);
+  useEffect(() => { if (!client) { setBal(null); setHold(null); return; } const f = () => { client.fetchMyBalance().then((b) => setBal(b ? { baseFree: b.baseFree, quoteFree: b.quoteFree } : null)).catch(() => {}); client.fetchWalletHoldings().then(setHold).catch(() => {}); }; f(); const t = setInterval(f, 2500); return () => clearInterval(t); }, [client]);
 
   const run = async (label: string, layer: "base" | "er", fn: () => Promise<string>) => {
     setStatus({ kind: "busy", msg: label }); const t = Date.now();
@@ -382,8 +383,8 @@ export default function App() {
                   {faucetMsg && <div className="faucet-msg">{faucetMsg}</div>}
                 </div>
               )}
-              <div className="bal-row"><span>wSOL credited</span><span className="m">{bal ? (bal.baseFree / 1e9).toFixed(4) : "—"}</span></div>
-              <div className="bal-row"><span>USDC credited</span><span className="m">{bal ? (bal.quoteFree / 1e6).toFixed(2) : "—"}</span></div>
+              <div className="bal-row"><span>credited · tradeable</span><span className="m">{bal ? (bal.baseFree / 1e9).toFixed(4) : "—"} SOL · {bal ? (bal.quoteFree / 1e6).toFixed(2) : "—"} USDC</span></div>
+              <div className="bal-row"><span>in wallet · depositable</span><span className="m">{hold ? hold.sol.toFixed(3) : "—"} SOL · {hold ? hold.usdc.toFixed(2) : "—"} USDC</span></div>
               <div className="dep-grid">
                 <input value={depSol} onChange={(e) => setDepSol(e.target.value)} inputMode="decimal" />
                 <button disabled={!client} onClick={() => run("deposit SOL", "base", () => client!.depositBaseSol(parseFloat(depSol) || 0))}>deposit SOL</button>

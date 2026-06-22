@@ -115,6 +115,11 @@ export class ShadeClient {
   // ---------- deposits / withdrawals (real tokens move here) ----------
   async depositBaseSol(sol: number) {
     const lamports = Math.round(sol * LAMPORTS_PER_SOL);
+    // must hold enough native SOL for the wrap + ~0.01 SOL gas/rent headroom, else the
+    // wallet rejects the tx with a vague "unexpected error".
+    const have = await this.baseProvider.connection.getBalance(this.me);
+    if (have < lamports + 0.01 * LAMPORTS_PER_SOL)
+      throw new Error(`only ${(have / LAMPORTS_PER_SOL).toFixed(3)} SOL in your wallet — need ${sol} + gas. Use the faucet or lower the amount.`);
     const ata = getAssociatedTokenAddressSync(this.baseMint, this.me);
     const pre: anchor.web3.TransactionInstruction[] = [...(await this.ensureUserIx())];
     try { await getAccount(this.baseProvider.connection, ata); }
@@ -129,6 +134,12 @@ export class ShadeClient {
   async depositQuoteUsdc(usdc: number) {
     const amount = Math.round(usdc * 1e6);
     const ata = getAssociatedTokenAddressSync(this.quoteMint, this.me);
+    // must actually hold this much USDC in the wallet, or the wallet rejects with a vague
+    // "unexpected error". Surface a clear, actionable message instead.
+    let have = 0;
+    try { have = Number((await getAccount(this.baseProvider.connection, ata)).amount); } catch { have = 0; }
+    if (have < amount)
+      throw new Error(`only ${(have / 1e6).toFixed(2)} USDC in your wallet — claim test USDC from the faucet, or lower the amount.`);
     // init the user's balance ledger if this is their first action (e.g. a buyer who
     // funded via the faucet and deposits USDC before ever touching SOL).
     const pre: anchor.web3.TransactionInstruction[] = [...(await this.ensureUserIx())];
@@ -264,6 +275,14 @@ export class ShadeClient {
   async fetchMyBalance(): Promise<UserBalanceJSON | null> {
     try { const b: any = await (this.program.account as any).userBalance.fetch(this.myBal()); return { owner: b.owner.toBase58(), baseFree: Number(b.baseFree), quoteFree: Number(b.quoteFree) }; }
     catch { return null; }
+  }
+  /** What the connected wallet actually holds (native SOL + USDC token) — what's available to deposit. */
+  async fetchWalletHoldings(): Promise<{ sol: number; usdc: number }> {
+    const conn = this.baseProvider.connection;
+    let sol = 0, usdc = 0;
+    try { sol = (await conn.getBalance(this.me)) / LAMPORTS_PER_SOL; } catch {}
+    try { usdc = Number((await getAccount(conn, getAssociatedTokenAddressSync(this.quoteMint, this.me))).amount) / 1e6; } catch {}
+    return { sol, usdc };
   }
 }
 
