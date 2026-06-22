@@ -29,10 +29,13 @@ export const ER_RPC = nodeEnv("EPHEMERAL_PROVIDER_ENDPOINT") || "https://devnet-
 export const ER_WS = nodeEnv("EPHEMERAL_WS_ENDPOINT") || "wss://devnet-router.magicblock.app";
 export const ER_VALIDATOR = new PublicKey(nodeEnv("VALIDATOR") || "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57");
 
-// wSOL is the base mint. USDC mint comes from env (the one you create with spl-token).
+// wSOL is the base mint. USDC mint comes from env, defaulting to the live devnet mock USDC.
 export const BASE_MINT = NATIVE_MINT; // So11111111111111111111111111111111111111112
+// the deployed book's quote_mint — used as the default so the app never falls back to wSOL
+// when VITE_USDC_MINT/USDC_MINT isn't set in the environment.
+export const DEVNET_USDC_MINT = "DANN41Tukr829a3zzXy81QpzfqNyYendveiuvwDnho4R";
 const _q = (nodeEnv("USDC_MINT") || "").trim();
-export const QUOTE_MINT = _q ? new PublicKey(_q) : NATIVE_MINT;
+export const QUOTE_MINT = _q ? new PublicKey(_q) : new PublicKey(DEVNET_USDC_MINT);
 
 export interface OrderJSON { id: number; owner: string; price: number; size: number; side: number; }
 export interface FillJSON { id: number; buyer: string; seller: string; price: number; size: number; ts: number; }
